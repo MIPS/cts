@@ -28,6 +28,7 @@ import android.net.Uri;
 import android.os.RemoteException;
 import android.provider.Settings;
 import android.test.AndroidTestCase;
+import android.util.Log;
 
 @TestTargetClass(android.provider.Settings.class)
 public class SettingsTest extends AndroidTestCase {
