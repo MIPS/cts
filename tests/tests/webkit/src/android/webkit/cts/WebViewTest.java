@@ -80,6 +80,8 @@ public class WebViewTest extends ActivityInstrumentationTestCase2<WebViewStubAct
     protected void setUp() throws Exception {
         super.setUp();
         mWebView = getActivity().getWebView();
+        // Set a web chrome client in order to receive progress updates.
+        mWebView.setWebChromeClient(new WebChromeClient());
         File f = getActivity().getFileStreamPath("snapshot");
         if (f.exists()) {
             f.delete();
