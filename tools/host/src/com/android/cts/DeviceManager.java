@@ -317,6 +317,7 @@ public class DeviceManager implements IDeviceChangeListener {
             executeCommand("killall emulator");
             executeCommand("killall emulator-x86");
             executeCommand("killall emulator-arm");
+            executeCommand("killall emulator-mips");
         }
 
         int attempts = 0;
