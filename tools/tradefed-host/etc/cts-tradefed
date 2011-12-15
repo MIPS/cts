@@ -51,7 +51,13 @@ fi
 
 
 # check if in Android build env
-if [ ! -z ${ANDROID_BUILD_TOP} ]; then
+if [ ! -z ${ANDROID_HOST_OUT} ]; then
+    CTS_ROOT=${ANDROID_HOST_OUT}/cts
+    if [ ! -d ${CTS_ROOT} ]; then
+        echo "Could not find $CTS_ROOT in Android build environment. Try 'make cts'"
+        exit
+    fi;
+elif [ ! -z ${ANDROID_BUILD_TOP} ]; then
     HOST=`uname`
     if [ "$HOST" == "Linux" ]; then
         OS="linux-x86"
