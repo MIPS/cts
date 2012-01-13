@@ -1679,6 +1679,7 @@ public class CameraTest extends ActivityInstrumentationTestCase2<CameraStubActiv
                 mCamera.startPreview();
                 waitForPreviewDone();
                 assertEquals(PREVIEW_CALLBACK_RECEIVED, mPreviewCallbackResult);
+		mCamera.stopPreview();
 
                 // Check if the picture size is the same as requested.
                 mCamera.takePicture(mShutterCallback, mRawPictureCallback, mJpegPictureCallback);
