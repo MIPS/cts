@@ -136,16 +136,16 @@ public class CtsTest implements IDeviceTest, IResumableTest, IShardableTest, IBu
         "run tests including known failures")
     private boolean mIncludeKnownFailures;
 
-    @Option(name = "reboot-per-package", description =
-            "Reboot after each package run")
-    private boolean mRebootPerPackage = false;
+    @Option(name = "disable-reboot", description =
+            "Do not reboot device after running some amount of tests. Default behavior is to reboot.")
+    private boolean mDisableReboot = false;
 
     @Option(name = "reboot-wait-time", description =
-            "Additional wait time in ms after boot complete. Meaningful only with reboot-per-package option")
+            "Additional wait time in ms after boot complete.")
     private int mRebootWaitTimeMSec = 2 * 60 * 1000;
 
     @Option(name = "reboot-interval", description =
-            "Interval between each reboot in min. Meaningful only with reboot-per-package option")
+            "Interval between each reboot in min.")
     private int mRebootIntervalMin = 30;
 
     /** data structure for a {@link IRemoteTest} and its known tests */
@@ -346,7 +346,7 @@ public class CtsTest implements IDeviceTest, IResumableTest, IShardableTest, IBu
             // always collect the device info, even for resumed runs, since test will likely be
             // running on a different device
             collectDeviceInfo(getDevice(), mCtsBuild, listener);
-            if (mRemainingTestPkgs.size() > 1) {
+            if (mRemainingTestPkgs.size() > 1 && !mDisableReboot) {
                 Log.i(LOG_TAG, "Initial reboot for multiple packages");
                 rebootDevice();
             }
@@ -367,15 +367,6 @@ public class CtsTest implements IDeviceTest, IResumableTest, IShardableTest, IBu
                 test.run(filter);
                 mRemainingTestPkgs.remove(0);
                 if (mRemainingTestPkgs.size() > 0) {
-                    if (mRebootPerPackage) {
-                        long currentTime = System.currentTimeMillis();
-                        if ((currentTime - prevTime) > intervalInMSec) {
-                            Log.i(LOG_TAG, String.format("Rebooting after running package %s",
-                                    knownTests.getPackageDef().getName()));
-                            rebootDevice();
-                            prevTime = System.currentTimeMillis();
-                        }
-                    }
                     // remove artifacts like status bar from the previous test.
                     // But this cannot dismiss dialog popped-up.
                     changeToHomeScreen();
