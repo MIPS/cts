@@ -29,6 +29,7 @@ import com.android.tradefed.config.Option;
 import com.android.tradefed.config.Option.Importance;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
+import com.android.tradefed.device.TestDeviceOptions;
 import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.result.ITestInvocationListener;
 import com.android.tradefed.result.InputStreamSource;
@@ -46,6 +47,9 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
+import java.lang.InterruptedException;
+import java.lang.System;
+import java.lang.Thread;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -131,6 +135,18 @@ public class CtsTest implements IDeviceTest, IResumableTest, IShardableTest, IBu
     @Option(name = RUN_KNOWN_FAILURES_OPTION, shortName = 'k', description =
         "run tests including known failures")
     private boolean mIncludeKnownFailures;
+
+    @Option(name = "reboot-per-package", description =
+            "Reboot after each package run")
+    private boolean mRebootPerPackage = false;
+
+    @Option(name = "reboot-wait-time", description =
+            "Additional wait time in ms after boot complete. Meaningful only with reboot-per-package option")
+    private int mRebootWaitTimeMSec = 2 * 60 * 1000;
+
+    @Option(name = "reboot-interval", description =
+            "Interval between each reboot in min. Meaningful only with reboot-per-package option")
+    private int mRebootIntervalMin = 30;
 
     /** data structure for a {@link IRemoteTest} and its known tests */
     class TestPackage {
@@ -330,7 +346,12 @@ public class CtsTest implements IDeviceTest, IResumableTest, IShardableTest, IBu
             // always collect the device info, even for resumed runs, since test will likely be
             // running on a different device
             collectDeviceInfo(getDevice(), mCtsBuild, listener);
-
+            if (mRemainingTestPkgs.size() > 1) {
+                Log.i(LOG_TAG, "Initial reboot for multiple packages");
+                rebootDevice();
+            }
+            long prevTime = System.currentTimeMillis();
+            long intervalInMSec = mRebootIntervalMin * 60 * 1000;
             while (!mRemainingTestPkgs.isEmpty()) {
                 TestPackage knownTests = mRemainingTestPkgs.get(0);
 
@@ -345,6 +366,20 @@ public class CtsTest implements IDeviceTest, IResumableTest, IShardableTest, IBu
                 forwardPackageDetails(knownTests.getPackageDef(), listener);
                 test.run(filter);
                 mRemainingTestPkgs.remove(0);
+                if (mRemainingTestPkgs.size() > 0) {
+                    if (mRebootPerPackage) {
+                        long currentTime = System.currentTimeMillis();
+                        if ((currentTime - prevTime) > intervalInMSec) {
+                            Log.i(LOG_TAG, String.format("Rebooting after running package %s",
+                                    knownTests.getPackageDef().getName()));
+                            rebootDevice();
+                            prevTime = System.currentTimeMillis();
+                        }
+                    }
+                    // remove artifacts like status bar from the previous test.
+                    // But this cannot dismiss dialog popped-up.
+                    changeToHomeScreen();
+                }
             }
 
             if (mScreenshot) {
@@ -363,6 +398,40 @@ public class CtsTest implements IDeviceTest, IResumableTest, IShardableTest, IBu
         }
     }
 
+    private void rebootDevice() throws DeviceNotAvailableException {
+        final int TIMEOUT_MS = 4 * 60 * 1000;
+        TestDeviceOptions options = mDevice.getOptions();
+        // store default value and increase time-out for reboot
+        int rebootTimeout = options.getRebootTimeout();
+        long onlineTimeout = options.getOnlineTimeout();
+        options.setRebootTimeout(TIMEOUT_MS);
+        options.setOnlineTimeout(TIMEOUT_MS);
+        mDevice.setOptions(options);
+
+        mDevice.reboot();
+
+        // restore default values
+        options.setRebootTimeout(rebootTimeout);
+        options.setOnlineTimeout(onlineTimeout);
+        mDevice.setOptions(options);
+        Log.i(LOG_TAG, "Rebooting done");
+        try {
+            Thread.sleep(mRebootWaitTimeMSec);
+        } catch (InterruptedException e) {
+            Log.i(LOG_TAG, "Boot wait interrupted");
+        }
+    }
+
+    private void changeToHomeScreen() throws DeviceNotAvailableException {
+        final String homeCmd = "input keyevent 3";
+
+        mDevice.executeShellCommand(homeCmd);
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            //ignore
+        }
+    }
     /**
      * Build the list of test packages to run
      */

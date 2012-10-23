@@ -165,6 +165,13 @@ public class FileSystemPermissionTest extends AndroidTestCase {
         assertFalse(f.canRead());
         assertFalse(f.canWrite());
         assertFalse(f.canExecute());
+
+        FileUtils.FileStatus status = new FileUtils.FileStatus();
+        if (f.exists()
+                && FileUtils.getFileStatus(f.getAbsolutePath(), status, true)) {
+            assertEquals("nfc", FileUtils.getUserName(status.uid));
+            assertEquals("nfc", FileUtils.getGroupName(status.gid));
+        }
     }
 
     @MediumTest
@@ -218,6 +225,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
                     "/app-cache/ciq/socket",
                     "/cache/fotapkg",
                     "/cache/fotapkg/tmp",
+                    "/data/2nd-init",
                     "/data/amit",
                     "/data/anr",
                     "/data/app",
@@ -270,6 +278,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
                     "/data/gpscfg",
                     "/data/hwvefs",
                     "/data/htcfs",
+                    "/data/img",
                     "/data/install",
                     "/data/internal-device",
                     "/data/internal-device/DCIM",
@@ -296,6 +305,9 @@ public class FileSystemPermissionTest extends AndroidTestCase {
                     "/data/misc/bluetooth",
                     "/data/misc/dhcp",
                     "/data/misc/lockscreen",
+                    "/data/misc/webwidgets",
+                    "/data/misc/webwidgets/chess",
+                    "/data/misc/widgets",
                     "/data/misc/wifi",
                     "/data/misc/wifi/sockets",
                     "/data/misc/wimax",
@@ -305,6 +317,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
                     "/data/nv",
                     "/data/nvcam",
                     "/data/panicreports",
+                    "/data/preinstall_md5",
                     "/data/property",
                     "/data/radio",
                     "/data/secure",
@@ -314,6 +327,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
                     "/data/simcom/btadd",
                     "/data/simcom/simlog",
                     "/data/system",
+                    "/data/tmp",
                     "/data/tombstones",
                     "/data/tpapi",
                     "/data/tpapi/etc",
@@ -329,6 +343,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
                     "/data/xt9",
                     "/dbdata/databases",
                     "/efs/.android",
+                    "/mnt/sdcard",
                     "/mnt/usbdrive",
                     "/mnt_ext",
                     "/mnt_ext/badablk2",

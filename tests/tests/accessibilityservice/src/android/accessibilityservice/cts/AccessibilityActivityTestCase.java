@@ -33,6 +33,7 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.test.ActivityInstrumentationTestCase2;
+import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityManager;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -52,11 +53,26 @@ public abstract class AccessibilityActivityTestCase<T extends Activity>
         public boolean accept(AccessibilityEvent event);
     }
 
+    private static final boolean DEBUG = false;
+
+    private static final String LOG_TAG = AccessibilityActivityTestCase.class.getSimpleName();
+
     /**
      * Timeout required for pending Binder calls or event processing to
      * complete.
      */
     public static final long TIMEOUT_ASYNC_PROCESSING = 5000;
+
+    /**
+     * The timeout after the last accessibility event to consider the device idle.
+     */
+    public static final long TIMEOUT_ACCESSIBILITY_STATE_IDLE = 100;
+
+    /**
+     * Instance for detecting the next accessibility event.
+     */
+    private static final NextAccessibilityEventWatcher sNextEventWatcher =
+            new NextAccessibilityEventWatcher();
 
     private static AccessibilityInteractionBridge sInteractionBridge;
 
@@ -70,6 +86,7 @@ public abstract class AccessibilityActivityTestCase<T extends Activity>
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        waitForAccessibilityStateIdle();
         startActivityAndWaitForFirstEvent();
     }
 
@@ -105,6 +122,7 @@ public abstract class AccessibilityActivityTestCase<T extends Activity>
             @Override
             public void run() {
                 getActivity();
+                getInstrumentation().waitForIdleSync();
             }
         },
                 new AccessibilityEventFilter() {
@@ -119,6 +137,39 @@ public abstract class AccessibilityActivityTestCase<T extends Activity>
         },
         TIMEOUT_ASYNC_PROCESSING);
         assertNotNull(awaitedEvent);
+    }
+
+    /**
+     * Waits for idle accessibility state.
+     */
+    private void waitForAccessibilityStateIdle() throws Exception {
+        AccessibilityEvent awaitedEvent = null;
+        try {
+            do {
+                awaitedEvent = getInteractionBridge().executeCommandAndWaitForAccessibilityEvent(
+                        sNextEventWatcher, sNextEventWatcher, TIMEOUT_ACCESSIBILITY_STATE_IDLE);
+            } while (awaitedEvent != null);
+        } catch (TimeoutException te) {
+            /* success - no event within the timeout - do nothing */
+        }
+    }
+
+    /**
+     * Dummy implementation that matches every event and does nothing.
+     */
+    private static class NextAccessibilityEventWatcher implements Runnable,
+            AccessibilityEventFilter {
+        @Override
+        public boolean accept(AccessibilityEvent event) {
+            if (DEBUG) {
+                Log.i(LOG_TAG, "Watcher event: " + event);
+            }
+            return true;
+        }
+        @Override
+        public void run() {
+            /* do nothing */
+        }
     }
 
     /**
@@ -164,7 +215,7 @@ public abstract class AccessibilityActivityTestCase<T extends Activity>
         /**
          * Flag whether we are waiting for a specific event.
          */
-        private volatile boolean mWaitingForEventDelivery;
+        private boolean mWaitingForEventDelivery;
 
         /**
          * Queue with received events.
@@ -177,9 +228,6 @@ public abstract class AccessibilityActivityTestCase<T extends Activity>
         }
 
         public void onAccessibilityEvent(AccessibilityEvent event) {
-            if (!mWaitingForEventDelivery) {
-                return;
-            }
             synchronized (mLock) {
                 mLock.notifyAll();
                 if (mWaitingForEventDelivery) {
@@ -231,8 +279,7 @@ public abstract class AccessibilityActivityTestCase<T extends Activity>
                             " not installed.");
                 }
 
-                throw new IllegalStateException("Delegating Accessibility Service not running."
-                         + "(Settings -> Accessibility -> Delegating Accessibility Service)");
+                throw new IllegalStateException("Delegating Accessibility Service not running.");
             }
 
             Intent intent = new Intent().setClassName(DELEGATING_SERVICE_PACKAGE,
@@ -280,8 +327,8 @@ public abstract class AccessibilityActivityTestCase<T extends Activity>
                         /* do nothing */
                     }
                 });
-                mInitialized = true;
                 synchronized (mLock) {
+                    mInitialized = true;
                     mLock.notifyAll();
                 }
             } catch (RemoteException re) {
@@ -293,8 +340,9 @@ public abstract class AccessibilityActivityTestCase<T extends Activity>
          * {@inheritDoc ServiceConnection#onServiceDisconnected(ComponentName)}
          */
         public void onServiceDisconnected(ComponentName name) {
-            mInitialized = false;
-            /* do nothing */
+            synchronized (mLock) {
+                mInitialized = false;
+            }
         }
 
         /**
@@ -462,22 +510,22 @@ public abstract class AccessibilityActivityTestCase<T extends Activity>
          * to a given timeout.
          *
          * @param command The command to execute before starting to wait for the event.
-         * @param filter Filter that recognizes the epected event.
+         * @param filter Filter that recognizes the expected event.
          * @param timeoutMillis The max wait time in milliseconds.
          */
         public AccessibilityEvent executeCommandAndWaitForAccessibilityEvent(Runnable command,
                 AccessibilityEventFilter filter, long timeoutMillis)
                 throws TimeoutException, Exception {
-            // Prepare to wait for an event.
-            mWaitingForEventDelivery = true;
-            // Execute the command.
-            command.run();
             synchronized (mLock) {
+                mEventQueue.clear();
+                // Prepare to wait for an event.
+                mWaitingForEventDelivery = true;
+                // Execute the command.
+                command.run();
                 try {
                     // Wait for the event.
                     final long startTimeMillis = SystemClock.uptimeMillis();
                     while (true) {
-                        mLock.notifyAll();
                         // Drain the event queue
                         while (!mEventQueue.isEmpty()) {
                             AccessibilityEvent event = mEventQueue.remove(0);
@@ -494,6 +542,7 @@ public abstract class AccessibilityActivityTestCase<T extends Activity>
                             throw new TimeoutException("Expected event not received within: "
                                     + timeoutMillis + " ms.");
                         }
+                        mLock.notifyAll();
                         try {
                             mLock.wait(remainingTimeMillis);
                         } catch (InterruptedException ie) {

@@ -36,6 +36,7 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.test.InstrumentationTestCase;
 
+import java.lang.Thread;
 import java.util.List;
 import java.lang.Thread;
 

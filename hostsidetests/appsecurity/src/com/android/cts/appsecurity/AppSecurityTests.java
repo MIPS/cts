@@ -19,16 +19,20 @@ package com.android.cts.appsecurity;
 import com.android.cts.tradefed.build.CtsBuildHelper;
 import com.android.ddmlib.Log;
 import com.android.ddmlib.testrunner.RemoteAndroidTestRunner;
+import com.android.ddmlib.testrunner.TestIdentifier;
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.result.CollectingTestListener;
+import com.android.tradefed.result.TestResult;
 import com.android.tradefed.result.TestRunResult;
+import com.android.tradefed.result.TestResult.TestStatus;
 import com.android.tradefed.testtype.DeviceTestCase;
 import com.android.tradefed.testtype.IBuildReceiver;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.util.Map;
 
 /**
  * Set of tests that verify various security checks involving multiple apps are properly enforced.
@@ -233,46 +237,6 @@ public class AppSecurityTests extends DeviceTestCase implements IBuildReceiver {
     }
 
     /**
-     * Test behavior when
-     * {@link android.Manifest.permission#READ_EXTERNAL_STORAGE} is enforced.
-     */
-    public void testReadExternalStorageEnforced() throws Exception {
-        try {
-            getDevice().uninstallPackage(EXTERNAL_STORAGE_APP_PKG);
-            getDevice().uninstallPackage(WRITE_EXTERNAL_STORAGE_APP_PKG);
-
-            // stage test file on external storage
-            getDevice().pushString("CAEK", "/sdcard/meow");
-
-            // mark permission as enforced
-            setPermissionEnforced(getDevice(), READ_EXTERNAL_STORAGE, true);
-
-            // install apps and run test
-            assertNull(getDevice()
-                    .installPackage(getTestAppFile(EXTERNAL_STORAGE_APP_APK), false));
-            assertNull(getDevice()
-                    .installPackage(getTestAppFile(WRITE_EXTERNAL_STORAGE_APP_APK), false));
-
-            // normal app should not be able to read
-            assertTrue("Normal app able to read external storage", runDeviceTests(
-                    EXTERNAL_STORAGE_APP_PKG, EXTERNAL_STORAGE_APP_CLASS,
-                    "testFailReadExternalStorage"));
-
-            // WRITE_EXTERNAL app should be able to read and write
-            assertTrue("WRITE_EXTERNAL app unable to read external storage", runDeviceTests(
-                    WRITE_EXTERNAL_STORAGE_APP_PKG, WRITE_EXTERNAL_STORAGE_APP_CLASS,
-                    "testReadExternalStorage"));
-            assertTrue("WRITE_EXTERNAL app unable to write external storage", runDeviceTests(
-                    WRITE_EXTERNAL_STORAGE_APP_PKG, WRITE_EXTERNAL_STORAGE_APP_CLASS,
-                    "testWriteExternalStorage"));
-
-        } finally {
-            getDevice().uninstallPackage(EXTERNAL_STORAGE_APP_PKG);
-            getDevice().uninstallPackage(WRITE_EXTERNAL_STORAGE_APP_PKG);
-        }
-    }
-
-    /**
      * Test that uninstall of an app removes its private data.
      */
     public void testUninstallRemovesData() throws Exception {
@@ -360,12 +324,38 @@ public class AppSecurityTests extends DeviceTestCase implements IBuildReceiver {
             assertNull(String.format("failed to install permission app with diff cert. Reason: %s",
                     installResult), installResult);
             // run PERMISSION_DIFF_CERT_PKG tests which try to access the permission
-            assertTrue("unexpected result when running permission tests",
-                    runDeviceTests(PERMISSION_DIFF_CERT_PKG));
+            TestRunResult result = doRunTests(PERMISSION_DIFF_CERT_PKG, null, null);
+            assertDeviceTestsPass(result);
         }
         finally {
             getDevice().uninstallPackage(DECLARE_PERMISSION_PKG);
             getDevice().uninstallPackage(PERMISSION_DIFF_CERT_PKG);
+        }
+    }
+
+    /**
+     * Helper method that checks that all tests in given result passed, and attempts to generate
+     * a meaningful error message if they failed.
+     *
+     * @param result
+     */
+    private void assertDeviceTestsPass(TestRunResult result) {
+        // TODO: consider rerunning if this occurred
+        assertFalse(String.format("Failed to successfully run device tests for %s. Reason: %s",
+                result.getName(), result.getRunFailureMessage()), result.isRunFailure());
+
+        if (result.hasFailedTests()) {
+            // build a meaningful error message
+            StringBuilder errorBuilder = new StringBuilder("on-device tests failed:\n");
+            for (Map.Entry<TestIdentifier, TestResult> resultEntry :
+                result.getTestResults().entrySet()) {
+                if (!resultEntry.getValue().getStatus().equals(TestStatus.PASSED)) {
+                    errorBuilder.append(resultEntry.getKey().toString());
+                    errorBuilder.append(":\n");
+                    errorBuilder.append(resultEntry.getValue().getStackTrace());
+                }
+            }
+            fail(errorBuilder.toString());
         }
     }
 
