@@ -734,6 +734,8 @@ public class CtsTest implements IDeviceTest, IResumableTest, IShardableTest, IBu
         // don't create more shards than the number of tests we have!
         for (int i = 0; i < mShards && i < allTests.size(); i++) {
             CtsTest shard = new CtsTest();
+            shard.mDisableReboot = mDisableReboot;
+            // FIXME: any other state that needs to be propagated?
             shard.mRemainingTestPkgs = new LinkedList<TestPackage>();
             shardQueue.add(shard);
         }
