@@ -18,7 +18,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
       package="com.android.cts.verifier"
       android:versionCode="1"
-      android:versionName="1337">
+      android:versionName="4.2_r4">
 
     <!-- Using 10 for more complete NFC support... -->
     <uses-sdk android:minSdkVersion="10"></uses-sdk>
@@ -317,6 +317,17 @@
                 android:resource="@xml/accessory_filter_adk" />
         </activity>
 -->
+
+        <activity android:name=".camera.intents.CameraIntentsActivity"
+                 android:label="@string/camera_intents">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_camera" />
+
+            <meta-data android:name="test_required_features" android:value="android.hardware.camera.any"/>
+        </activity>
 
         <activity android:name=".camera.orientation.CameraOrientationActivity"
                  android:label="@string/camera_orientation"

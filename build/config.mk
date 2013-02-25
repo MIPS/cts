@@ -15,3 +15,4 @@
 BUILD_CTS_EXECUTABLE := cts/build/test_executable.mk
 BUILD_CTS_PACKAGE := cts/build/test_package.mk
 BUILD_CTS_HOST_JAVA_LIBRARY := cts/build/test_host_java_library.mk
+BUILD_CTS_UI_JAVA_LIBRARY := cts/build/test_uiautomator.mk

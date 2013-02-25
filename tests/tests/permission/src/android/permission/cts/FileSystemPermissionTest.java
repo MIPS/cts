@@ -25,6 +25,7 @@ import android.test.suitebuilder.annotation.LargeTest;
 
 import java.io.File;
 import java.io.FileFilter;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
@@ -359,6 +360,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
                     "/data/drm/IDM/HTTP",
                     "/data/drm/rights",
                     "/data/dump",
+                    "/data/efslog",
                     "/data/emt",
                     "/data/factory",
                     "/data/fics",
@@ -375,6 +377,8 @@ public class FileSystemPermissionTest extends AndroidTestCase {
                     "/data/install",
                     "/data/internal-device",
                     "/data/internal-device/DCIM",
+                    "/data/last_alog",
+                    "/data/last_klog",
                     "/data/local",
                     "/data/local/logs",
                     "/data/local/logs/kernel",
@@ -484,6 +488,46 @@ public class FileSystemPermissionTest extends AndroidTestCase {
                 writableDirs.isEmpty());
     }
 
+    @LargeTest
+    public void testReadingSysFilesDoesntFail() throws Exception {
+        tryToReadFromAllIn(new File("/sys"));
+    }
+
+    private static void tryToReadFromAllIn(File dir) throws IOException {
+        assertTrue(dir.isDirectory());
+
+        if (isSymbolicLink(dir)) {
+            // don't examine symbolic links.
+            return;
+        }
+
+        File[] files = dir.listFiles();
+
+        if (files != null) {
+            for (File f : files) {
+                if (f.isDirectory()) {
+                    tryToReadFromAllIn(f);
+                } else {
+                    tryFileRead(f);
+                }
+            }
+        }
+    }
+
+    private static void tryFileRead(File f) {
+        byte[] b = new byte[1024];
+        try {
+            System.out.println("looking at " + f.getCanonicalPath());
+            FileInputStream fis = new FileInputStream(f);
+            while(fis.read(b) != -1) {
+                // throw away data
+            }
+            fis.close();
+        } catch (IOException e) {
+            // ignore
+        }
+    }
+
     private static final Set<File> SYS_EXCEPTIONS = new HashSet<File>(
             Arrays.asList(
                 new File("/sys/kernel/debug/tracing/trace_marker")
@@ -573,6 +617,29 @@ public class FileSystemPermissionTest extends AndroidTestCase {
             if (status.hasModeFlag(FileUtils.S_IFBLK)) {
                 if (f.canRead() || f.canWrite() || f.canExecute()) {
                     retval.add(f);
+                }
+                if (status.uid == 2000) {
+                    // The shell user should not own any block devices
+                    retval.add(f);
+                }
+
+                // Don't allow block devices owned by GIDs
+                // accessible to non-privileged applications.
+                if ((status.gid == 1007)           // AID_LOG
+                          || (status.gid == 1015)  // AID_SDCARD_RW
+                          || (status.gid == 1023)  // AID_MEDIA_RW
+                          || (status.gid == 1028)  // AID_SDCARD_R
+                          || (status.gid == 2000)) // AID_SHELL
+                {
+                    if (status.hasModeFlag(FileUtils.S_IRGRP)
+                            || status.hasModeFlag(FileUtils.S_IWGRP)
+                            || status.hasModeFlag(FileUtils.S_IXGRP))
+                    {
+
+                        // non-privileged GIDs should not be able to access
+                        // any block device.
+                        retval.add(f);
+                    }
                 }
             }
         }
