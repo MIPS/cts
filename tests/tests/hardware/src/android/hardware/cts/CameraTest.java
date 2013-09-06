@@ -2060,6 +2060,7 @@ public class CameraTest extends ActivityInstrumentationTestCase2<CameraStubActiv
     private void testPreviewFormatsByCamera(int cameraId) throws Exception {
         initializeMessageLooper(cameraId);
         Parameters parameters = mCamera.getParameters();
+        int origformat = parameters.getPreviewFormat();
         for (int format: parameters.getSupportedPreviewFormats()) {
             Log.v(TAG, "Test preview format " + format);
             parameters.setPreviewFormat(format);
@@ -2069,6 +2070,9 @@ public class CameraTest extends ActivityInstrumentationTestCase2<CameraStubActiv
             waitForPreviewDone();
             assertEquals(PREVIEW_CALLBACK_RECEIVED, mPreviewCallbackResult);
         }
+        Log.v(TAG, "Test preview format back to " + origformat);
+        parameters.setPreviewFormat(origformat);
+        mCamera.setParameters(parameters);
         terminateMessageLooper();
     }
 
