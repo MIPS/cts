@@ -34,6 +34,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 
+import com.android.cts.util.TimeoutReq;
+
 /**
  * Performs the signature check via a JUnit test.
  */
@@ -103,6 +105,7 @@ public class SignatureTest extends AndroidTestCase {
      * <p/>
      * Will check the entire API, and then report the complete list of failures
      */
+    @TimeoutReq(minutes = 60)
     public void testSignature() {
         Resources r = getContext().getResources();
         Class rClass = R.xml.class;

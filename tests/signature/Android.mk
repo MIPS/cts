@@ -24,7 +24,7 @@ LOCAL_PACKAGE_NAME := CtsSignatureTestCases
 
 LOCAL_SDK_VERSION := current
 
-LOCAL_STATIC_JAVA_LIBRARIES := ctstestrunner
+LOCAL_STATIC_JAVA_LIBRARIES := ctstestrunner ctsdeviceutil
 
 # To be passed in on command line
 CTS_API_VERSION ?= current
