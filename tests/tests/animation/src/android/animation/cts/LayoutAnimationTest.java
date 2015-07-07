@@ -170,7 +170,7 @@ public class LayoutAnimationTest extends
     }
 
     private void setDefaultTransition() {
-        long duration = 1000;
+        long duration = 2000;
         mView.setLayoutTransition(mLayoutTransition);
         mLayoutTransition.setDuration(duration);
         mLayoutTransition.setInterpolator(LayoutTransition.APPEARING,
