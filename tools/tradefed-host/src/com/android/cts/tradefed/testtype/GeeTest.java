@@ -44,7 +44,7 @@ public class GeeTest implements IBuildReceiver, IDeviceTest, IRemoteTest {
     private static final String NATIVE_TESTS_DIRECTORY_TMP = "/data/local/tmp";
     private static final String ANDROID_PATH_SEPARATOR = "/";
 
-    private int mMaxTestTimeMs = 1 * 60 * 1000;
+    private int mMaxTestTimeMs = 15 * 60 * 1000;
 
     private CtsBuildHelper mCtsBuild;
     private ITestDevice mDevice;
