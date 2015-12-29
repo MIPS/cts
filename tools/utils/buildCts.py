@@ -157,6 +157,13 @@ class CtsBuilder(object):
     #TODO(stuartscott): Maybe move away from com.android.* to android.* - less typing
     self.__WritePlan(plan, 'PDK')
 
+     # CTS - sub plan for Security
+     plan = tools.TestPlan(packages)
+     plan.Exclude('.*')
+     plan.Include(r'android\.security$')
+     plan.Include('android.\host.\jdwpsecurity$')
+     self.__WritePlan(plan, 'Security')
+
     #dirty hack to copy over pre-populated CTS plans - flaky vs stable - to streamline autoCTS
     shutil.copyfile(os.path.join(self.definedplans_repository, 'CTS-flaky.xml'),
         os.path.join(self.plan_repository, 'CTS-flaky.xml'))
