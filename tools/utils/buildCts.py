@@ -172,6 +172,12 @@ class CtsBuilder(object):
       plan.IncludeTests(package, test_list)
     self.__WritePlan(plan, 'CTS-flaky')
 
+    # CTS - sub plan for Security
+    plan = tools.TestPlan(packages)
+    plan.Exclude('.*')
+    plan.Include(r'android\.security$')
+    plan.Include('android\.host\.jdwpsecurity$')
+    self.__WritePlan(plan, 'Security')
 
 def BuildCtsFlakyTestList():
   """ Construct a defaultdict that maps package name to a list of tests
