@@ -180,4 +180,9 @@ public class TypefaceTest extends AndroidTestCase {
         fOutput.close();
         return (file.getPath());
     }
+
+    public void testBadFont() {
+        Typeface typeface = Typeface.createFromAsset(getContext().getAssets(), "ft45987.ttf");
+        assertNotNull(typeface);
+    }
 }
