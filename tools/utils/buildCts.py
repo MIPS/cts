@@ -161,7 +161,7 @@ class CtsBuilder(object):
      plan = tools.TestPlan(packages)
      plan.Exclude('.*')
      plan.Include(r'android\.security$')
-     plan.Include('android.\host.\jdwpsecurity$')
+     plan.Include('android\.host\.jdwpsecurity$')
      self.__WritePlan(plan, 'Security')
 
     #dirty hack to copy over pre-populated CTS plans - flaky vs stable - to streamline autoCTS
