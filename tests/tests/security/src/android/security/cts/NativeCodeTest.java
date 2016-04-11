@@ -56,6 +56,15 @@ public class NativeCodeTest extends TestCase {
                    doFutexTest());
     }
 
+    public void testPipeReadV() throws Exception {
+        assertTrue("Device is vulnerable to CVE-2015-1805 and/or CVE-2016-0774,"
+                   + " a vulnerability in the pipe_read() function."
+                   + " Please apply the following patches:\n"
+                   + "https://git.kernel.org/cgit/linux/kernel/git/stable/linux-stable.git/commit/?id=75cf667b7fac08a7b21694adca7dff07361be68a\n"
+                   + "https://git.kernel.org/cgit/linux/kernel/git/stable/linux-stable.git/commit/?id=feae3ca2e5e1a8f44aa6290255d3d9709985d0b2\n",
+                   doPipeReadVTest());
+    }
+
     /**
      * Returns true iff this device is vulnerable to CVE-2013-2094.
      * A patch for CVE-2013-2094 can be found at
@@ -91,6 +100,19 @@ public class NativeCodeTest extends TestCase {
     public void testCVE20141710() throws Exception {
         assertTrue("Device is vulnerable to CVE-2014-1710", doCVE20141710Test());
     }
+
+    /**
+     * CVE-2015-1805 and CVE-2016-0774
+     *
+     * Returns true if the patches are applied, crashes the system otherwise.
+     *
+     * Detects if the following patches are present.
+     * https://git.kernel.org/cgit/linux/kernel/git/stable/linux-stable.git/commit/?id=75cf667b7fac08a7b21694adca7dff07361be68a
+     * https://git.kernel.org/cgit/linux/kernel/git/stable/linux-stable.git/commit/?id=feae3ca2e5e1a8f44aa6290255d3d9709985d0b2
+     *
+     * b/27275324 and b/27721803
+     */
+    private static native boolean doPipeReadVTest();
 
     /**
      * ANDROID-15455425 / CVE-2014-3153
