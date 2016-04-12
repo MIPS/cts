@@ -62,8 +62,7 @@ public class SyncStorageEngineTest extends AndroidTestCase {
 
         SyncStorageEngine engine = SyncStorageEngine.newTestInstance(getContext());
         Account account = new Account("account1", "type1");
-        SyncStorageEngine.EndPoint endPoint = new SyncStorageEngine.EndPoint(account, "auth1", 0);
-        SyncStatusInfo info = engine.getStatusByAuthority(endPoint);
+        SyncStatusInfo info = engine.getStatusByAccountAndAuthority(account, 0, "auth1");
         assertNull(info);
     }
 
