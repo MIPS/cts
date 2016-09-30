@@ -86,6 +86,7 @@ import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSocket;
 import javax.net.ssl.X509TrustManager;
 
 /**
@@ -140,6 +141,8 @@ public class CtsTestServer {
     private final Map<String, HttpRequest> mLastRequestMap = new HashMap<String, HttpRequest>();
     private long mDocValidity;
     private long mDocAge;
+    private final ArrayList<RequestResult> mRequestResults;
+    private boolean mHangUp;
 
     /**
      * Create and start a local HTTP server instance.
@@ -176,6 +179,7 @@ public class CtsTestServer {
         mMap = MimeTypeMap.getSingleton();
         mQueries = new Vector<String>();
         mServerThread = new ServerThread(this, mSsl);
+        mRequestResults = new ArrayList<RequestResult>();
         if (mSsl) {
             mServerUri = "https://localhost:" + mServerThread.mSocket.getLocalPort();
         } else {
@@ -267,6 +271,48 @@ public class CtsTestServer {
         public boolean verify(String hostname, SSLSession session) {
             return true;
         }
+    }
+
+    /**
+     * Result for each of the requests generated.
+     */
+    public enum RequestResult {
+        HANG_UP,
+        UNENCRYPTED,
+        SSLV3,
+        TLSV1,
+        OTHER;
+    };
+
+    /**
+     * If {@code hangUp} is {@code true}, every connection to the server will
+     * result in a socket accept followed by an immediate socket close.
+     */
+    public void setHangUp(boolean hangUp) {
+        mHangUp = hangUp;
+    }
+
+    /**
+     * Returns {@code true} if every connection to the server will
+     * result in a socket accept followed by an immediate socket close.
+     */
+    public boolean getHangUp() {
+        return mHangUp;
+    }
+
+    protected void addRequestResult(RequestResult result) {
+        mRequestResults.add(result);
+    }
+
+    /**
+     * Clears the current request results and returns the previously accumulated
+     * results.
+     */
+    public RequestResult[] clearRequestResults() {
+        RequestResult[] results = mRequestResults.toArray(
+                new RequestResult[mRequestResults.size()]);
+        mRequestResults.clear();
+        return results;
     }
 
     /**
@@ -881,6 +927,29 @@ public class CtsTestServer {
             while (!mIsCancelled) {
                 try {
                     Socket socket = mSocket.accept();
+
+                    if (mServer.getHangUp()) {
+                        mServer.addRequestResult(RequestResult.HANG_UP);
+                        socket.close();
+                        continue;
+                    }
+
+                    if (socket instanceof SSLSocket) {
+                        SSLSocket sslSocket = (SSLSocket) socket;
+                        sslSocket.startHandshake();
+
+                        SSLSession sslSession = sslSocket.getSession();
+                        String protocol = sslSession.getProtocol();
+                        if ("SSLv3".equals(protocol)) {
+                            mServer.addRequestResult(RequestResult.SSLV3);
+                        } else if ("TLSv1".equals(protocol)) {
+                            mServer.addRequestResult(RequestResult.TLSV1);
+                        } else {
+                            mServer.addRequestResult(RequestResult.OTHER);
+                        }
+                    } else {
+                        mServer.addRequestResult(RequestResult.UNENCRYPTED);
+                    }
 
                     DefaultHttpServerConnection conn = mServer.createHttpServerConnection();
                     HttpParams params = new BasicHttpParams();
