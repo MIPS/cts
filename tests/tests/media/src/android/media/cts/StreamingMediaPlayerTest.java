@@ -18,6 +18,7 @@ package android.media.cts;
 import android.media.MediaPlayer;
 import android.util.Log;
 import android.webkit.cts.CtsTestServer;
+import java.io.IOException;
 
 
 /**
@@ -275,6 +276,73 @@ public class StreamingMediaPlayerTest extends MediaPlayerTestBase {
             }
 
             playLiveVideoTest(stream_url, 10);
+        } finally {
+            mServer.shutdown();
+        }
+    }
+
+    public void testNoSSLv3Fallback() throws Exception {
+        mServer = new CtsTestServer(mContext, true);
+        try {
+            String stream_url = mServer.getAssetUrl("ringer.mp3");
+            mMediaPlayer.setDataSource(stream_url);
+
+            mMediaPlayer.setDisplay(getActivity().getSurfaceHolder());
+            mMediaPlayer.setScreenOnWhilePlaying(true);
+
+            mOnBufferingUpdateCalled.reset();
+            mMediaPlayer.setOnBufferingUpdateListener(new MediaPlayer.OnBufferingUpdateListener() {
+                @Override
+                public void onBufferingUpdate(MediaPlayer mp, int percent) {
+                    mOnBufferingUpdateCalled.signal();
+                }
+            });
+            mMediaPlayer.setOnErrorListener(new MediaPlayer.OnErrorListener() {
+                @Override
+                public boolean onError(MediaPlayer mp, int what, int extra) {
+                    fail("Media player had error " + what);
+                    return true;
+                }
+            });
+
+            assertFalse(mOnBufferingUpdateCalled.isSignalled());
+            mServer.setHangUp(true);
+            try {
+                mMediaPlayer.prepare();
+                fail("First connection should throw IOException");
+            } catch (IOException expected) {
+            }
+
+            CtsTestServer.RequestResult[] hangUpResults = mServer.clearRequestResults();
+            assertTrue(hangUpResults.length > 0);
+            for (int i = 0; i < hangUpResults.length; i++) {
+                assertEquals(CtsTestServer.RequestResult.HANG_UP, hangUpResults[i]);
+            }
+
+            mMediaPlayer.reset();
+            mMediaPlayer.setDataSource(stream_url);
+
+            assertFalse(mOnBufferingUpdateCalled.isSignalled());
+            mServer.setHangUp(false);
+
+            /*
+             * The mediaserver process doesn't allow us to supply our own TrustManager,
+             * so our tests will always fail certificate validation since our certificate
+             * is self-signed. This is okay since we've already negotiated the SSL/TLS
+             * protocol by then which is all we need to know for this test.
+             */
+            try {
+                mMediaPlayer.prepare();
+                fail("Certificate should not be trusted");
+            } catch (IOException expected) {
+            }
+
+            mMediaPlayer.reset();
+
+            CtsTestServer.RequestResult[] results = mServer.clearRequestResults();
+            System.out.println(java.util.Arrays.deepToString(results));
+            assertEquals(1, results.length);
+            assertEquals(CtsTestServer.RequestResult.TLSV1, results[0]);
         } finally {
             mServer.shutdown();
         }
