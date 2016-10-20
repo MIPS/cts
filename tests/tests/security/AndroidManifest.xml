@@ -25,6 +25,11 @@
 
     <application>
         <uses-library android:name="android.test.runner" />
+
+        <service android:name="android.security.cts.IsolatedService"
+                 android:process=":Isolated"
+                 android:isolatedProcess="true"/>
+
     </application>
 
     <instrumentation android:name="android.test.InstrumentationCtsTestRunner"
