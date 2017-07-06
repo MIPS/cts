@@ -99,9 +99,11 @@ abstract class AbstractRestrictBackgroundNetworkTestCase extends Instrumentation
     protected ConnectivityManager mCm;
     protected WifiManager mWfm;
     protected int mUid;
+    private int mMyUid;
     private String mMeteredWifi;
     private boolean mHasWatch;
     private String mDeviceIdleConstantsSetting;
+    private boolean mSupported;
 
     @Override
     protected void setUp() throws Exception {
@@ -112,7 +114,7 @@ abstract class AbstractRestrictBackgroundNetworkTestCase extends Instrumentation
         mCm = (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
         mWfm = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
         mUid = getUid(TEST_APP2_PKG);
-        final int myUid = getUid(mContext.getPackageName());
+        mMyUid = getUid(mContext.getPackageName());
         mHasWatch = mContext.getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_WATCH);
         if (mHasWatch) {
@@ -120,8 +122,10 @@ abstract class AbstractRestrictBackgroundNetworkTestCase extends Instrumentation
         } else {
             mDeviceIdleConstantsSetting = "device_idle_constants";
         }
+        mSupported = setUpActiveNetworkMeteringState();
+
         Log.i(TAG, "Apps status on " + getName() + ":\n"
-                + "\ttest app: uid=" + myUid + ", state=" + getProcessStateByUid(myUid) + "\n"
+                + "\ttest app: uid=" + mMyUid + ", state=" + getProcessStateByUid(mMyUid) + "\n"
                 + "\tapp2: uid=" + mUid + ", state=" + getProcessStateByUid(mUid));
    }
 
@@ -196,6 +200,21 @@ abstract class AbstractRestrictBackgroundNetworkTestCase extends Instrumentation
         assertEquals("wrong status", toString(expectedStatus), actualStatus);
     }
 
+    protected void assertMyRestrictBackgroundStatus(int expectedStatus) throws Exception {
+        final int actualStatus = mCm.getRestrictBackgroundStatus();
+        assertEquals("Wrong status", toString(expectedStatus), toString(actualStatus));
+    }
+
+    protected boolean isMyRestrictBackgroundStatus(int expectedStatus) throws Exception {
+        final int actualStatus = mCm.getRestrictBackgroundStatus();
+        if (expectedStatus != actualStatus) {
+            Log.d(TAG, "Expected: " + toString(expectedStatus)
+                    + " but actual: " + toString(actualStatus));
+            return false;
+        }
+        return true;
+    }
+
     protected void assertBackgroundNetworkAccess(boolean expectAllowed) throws Exception {
         assertBackgroundState(); // Sanity check.
         assertNetworkAccess(expectAllowed);
@@ -214,7 +233,9 @@ abstract class AbstractRestrictBackgroundNetworkTestCase extends Instrumentation
     /**
      * Whether this device suport this type of test.
      *
-     * <p>Should be overridden when necessary, and explicitly used before each test. Example:
+     * <p>Should be overridden when necessary (but always calling
+     * {@code super.isSupported()} first), and explicitly used before each test
+     * Example:
      *
      * <pre><code>
      * public void testSomething() {
@@ -224,7 +245,7 @@ abstract class AbstractRestrictBackgroundNetworkTestCase extends Instrumentation
      * @return {@code true} by default.
      */
     protected boolean isSupported() throws Exception {
-        return true;
+        return mSupported;
     }
 
     /**
@@ -437,15 +458,61 @@ abstract class AbstractRestrictBackgroundNetworkTestCase extends Instrumentation
     }
 
     /**
-     * Puts the device in a state where the active network is metered, or fail if it can't achieve
-     * that state.
+     * Sets the initial metering state for the active network.
+     *
+     * <p>It's called on setup and by default does nothing - it's up to the
+     * subclasses to override.
+     *
+     * @return whether the tests in the subclass are supported on this device.
      */
-    protected void setMeteredNetwork() throws Exception {
+    protected boolean setUpActiveNetworkMeteringState() throws Exception {
+        return true;
+    }
+
+    /**
+     * Makes sure the active network is not metered.
+     *
+     * <p>If the device does not supoprt un-metered networks (for example if it
+     * only has cellular data but not wi-fi), it should return {@code false};
+     * otherwise, it should return {@code true} (or fail if the un-metered
+     * network could not be set).
+     *
+     * @return {@code true} if the network is now unmetered.
+     */
+    protected boolean setUnmeteredNetwork() throws Exception {
+        final NetworkInfo info = mCm.getActiveNetworkInfo();
+        assertNotNull("Could not get active network", info);
+        if (!mCm.isActiveNetworkMetered()) {
+            Log.d(TAG, "Active network is not metered: " + info);
+        } else if (info.getType() == ConnectivityManager.TYPE_WIFI) {
+            Log.i(TAG, "Setting active WI-FI network as not metered: " + info );
+            setWifiMeteredStatus(false);
+        } else {
+            Log.d(TAG, "Active network cannot be set to un-metered: " + info);
+            return false;
+        }
+        assertActiveNetworkMetered(false); // Sanity check.
+        return true;
+    }
+
+    /**
+     * Enables metering on the active network if supported.
+     *
+     * <p>If the device does not support metered networks it should return
+     * {@code false}; otherwise, it should return {@code true} (or fail if the
+     * metered network could not be set).
+     *
+     * @return {@code true} if the network is now metered.
+     */
+    protected boolean setMeteredNetwork() throws Exception {
         final NetworkInfo info = mCm.getActiveNetworkInfo();
         final boolean metered = mCm.isActiveNetworkMetered();
         if (metered) {
             Log.d(TAG, "Active network already metered: " + info);
-            return;
+            return true;
+        } else if (info.getType() != ConnectivityManager.TYPE_WIFI) {
+            Log.w(TAG, "Active network does not support metering: " + info);
+            return false;
         } else {
             Log.w(TAG, "Active network not metered: " + info);
         }
@@ -456,31 +523,21 @@ abstract class AbstractRestrictBackgroundNetworkTestCase extends Instrumentation
         // Sanity check.
         assertWifiMeteredStatus(netId, true);
         assertActiveNetworkMetered(true);
+        return true;
     }
 
     /**
-     * Puts the device in a state where the active network is not metered, or fail if it can't
-     * achieve that state.
-     * <p>It assumes the device has a valid WI-FI connection.
+     * Resets the device metering state to what it was before the test started.
+     *
+     * <p>This reverts any metering changes made by {@code setMeteredNetwork}.
      */
     protected void resetMeteredNetwork() throws Exception {
         if (mMeteredWifi != null) {
             Log.i(TAG, "resetMeteredNetwork(): SID '" + mMeteredWifi
                     + "' was set as metered by test case; resetting it");
             setWifiMeteredStatus(mMeteredWifi, false);
-        } else {
-            final NetworkInfo info = mCm.getActiveNetworkInfo();
-            assertNotNull("Could not get active network", info);
-            if (!mCm.isActiveNetworkMetered()) {
-                Log.d(TAG, "Active network is not metered: " + info);
-            } else if (info.getType() == ConnectivityManager.TYPE_WIFI) {
-                Log.i(TAG, "Setting active WI-FI network as metered: " + info );
-                setWifiMeteredStatus(false);
-            } else {
-                fail("Active network is not WI-FI hence cannot be set as non-metered: " + info);
-            }
+            assertActiveNetworkMetered(false); // Sanity check.
         }
-        assertActiveNetworkMetered(false); // Sanity check.
     }
 
     private void assertActiveNetworkMetered(boolean expected) throws Exception {

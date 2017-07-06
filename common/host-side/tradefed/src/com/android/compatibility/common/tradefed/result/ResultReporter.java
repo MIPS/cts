@@ -19,7 +19,8 @@ import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.compatibility.common.tradefed.result.InvocationFailureHandler;
 import com.android.compatibility.common.tradefed.result.TestRunHandler;
 import com.android.compatibility.common.tradefed.testtype.CompatibilityTest;
-import com.android.compatibility.common.tradefed.testtype.CompatibilityTest.RetryType;
+import com.android.compatibility.common.tradefed.util.RetryType;
+import com.android.compatibility.common.util.ChecksumReporter;
 import com.android.compatibility.common.util.ICaseResult;
 import com.android.compatibility.common.util.IInvocationResult;
 import com.android.compatibility.common.util.IModuleResult;
@@ -60,6 +61,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -78,6 +80,11 @@ public class ResultReporter implements ILogSaverListener, ITestInvocationListene
     private static final String CTS_PREFIX = "cts:";
     private static final String BUILD_INFO = CTS_PREFIX + "build_";
 
+    private static final List<String> NOT_RETRY_FILES = Arrays.asList(
+            ChecksumReporter.NAME,
+            ChecksumReporter.PREV_NAME,
+            ResultHandler.FAILURE_REPORT_NAME);
+
     @Option(name = CompatibilityTest.RETRY_OPTION,
             shortName = 'r',
             description = "retry a previous session.",
@@ -86,8 +93,8 @@ public class ResultReporter implements ILogSaverListener, ITestInvocationListene
 
     @Option(name = CompatibilityTest.RETRY_TYPE_OPTION,
             description = "used with " + CompatibilityTest.RETRY_OPTION
-            + ", retry tests of a certain status. Possible values include \"failed\" and "
-            + "\"not_executed\".",
+            + ", retry tests of a certain status. Possible values include \"failed\", "
+            + "\"not_executed\", and \"custom\".",
             importance = Importance.IF_UNSET)
     private RetryType mRetryType = null;
 
@@ -357,28 +364,16 @@ public class ResultReporter implements ILogSaverListener, ITestInvocationListene
     public void testRunEnded(long elapsedTime, Map<String, String> metrics) {
         mCurrentModuleResult.inProgress(false);
         mCurrentModuleResult.addRuntime(elapsedTime);
-        if (!mModuleWasDone) {
-            // Not executed count now represents an upper-bound for a fix to b/33211104.
-            // Only setNotExecuted this number if the module has already been completely executed.
-            int testCountDiff = Math.max(mTotalTestsInModule - mCurrentTestNum, 0);
-            if (isShardResultReporter()) {
-                // reset value, which is added to total count for master shard upon merge
-                mCurrentModuleResult.setNotExecuted(testCountDiff);
-            } else {
-                // increment value for master shard
-                mCurrentModuleResult.setNotExecuted(mCurrentModuleResult.getNotExecuted()
-                        + testCountDiff);
-            }
-            if (mCanMarkDone) {
-                // Only mark module done if status of the invocation allows it (mCanMarkDone) and
-                // if module has not already been marked done.
-                mCurrentModuleResult.setDone(mCurrentTestNum >= mTotalTestsInModule);
-            }
+        if (!mModuleWasDone && mCanMarkDone) {
+            // Only mark module done if status of the invocation allows it (mCanMarkDone) and
+            // if module has not already been marked done.
+            mCurrentModuleResult.setDone(mCurrentTestNum >= mTotalTestsInModule);
         }
         if (isShardResultReporter()) {
             // Forward module results to the master.
             mMasterResultReporter.mergeModuleResult(mCurrentModuleResult);
             mCurrentModuleResult.resetTestRuns();
+            mCurrentModuleResult.resetRuntime();
         }
     }
 
@@ -479,18 +474,17 @@ public class ResultReporter implements ILogSaverListener, ITestInvocationListene
         String moduleProgress = String.format("%d of %d",
                 mResult.getModuleCompleteCount(), mResult.getModules().size());
 
-        info("Invocation finished in %s. PASSED: %d, FAILED: %d, NOT EXECUTED: %d, MODULES: %s",
+        info("Invocation finished in %s. PASSED: %d, FAILED: %d, MODULES: %s",
                 TimeUtil.formatElapsedTime(elapsedTime),
                 mResult.countResults(TestStatus.PASS),
                 mResult.countResults(TestStatus.FAIL),
-                mResult.getNotExecuted(),
                 moduleProgress);
 
         long startTime = mResult.getStartTime();
         try {
             // Zip the full test results directory.
             copyDynamicConfigFiles(mBuildHelper.getDynamicConfigFiles(), mResultDir);
-            copyFormattingFiles(mResultDir);
+            copyFormattingFiles(mResultDir, mBuildHelper.getSuiteName());
 
             File resultFile = ResultHandler.writeResults(mBuildHelper.getSuiteName(),
                     mBuildHelper.getSuiteVersion(), mBuildHelper.getSuitePlan(),
@@ -667,6 +661,7 @@ public class ResultReporter implements ILogSaverListener, ITestInvocationListene
             return true; // always allow modules to be marked done if not retry
         }
         return !(RetryType.FAILED.equals(mRetryType)
+                || RetryType.CUSTOM.equals(mRetryType)
                 || args.contains(CompatibilityTest.INCLUDE_FILTER_OPTION)
                 || args.contains(CompatibilityTest.EXCLUDE_FILTER_OPTION)
                 || args.contains(CompatibilityTest.SUBPLAN_OPTION)
@@ -679,10 +674,15 @@ public class ResultReporter implements ILogSaverListener, ITestInvocationListene
      *
      * @param resultsDir
      */
-    static void copyFormattingFiles(File resultsDir) {
+    static void copyFormattingFiles(File resultsDir, String suiteName) {
         for (String resultFileName : ResultHandler.RESULT_RESOURCES) {
             InputStream configStream = ResultHandler.class.getResourceAsStream(
+                    String.format("/report/%s-%s", suiteName, resultFileName));
+            if (configStream == null) {
+                // If suite specific files are not available, fallback to common.
+                configStream = ResultHandler.class.getResourceAsStream(
                     String.format("/report/%s", resultFileName));
+            }
             if (configStream != null) {
                 File resultFile = new File(resultsDir, resultFileName);
                 try {
@@ -724,23 +724,31 @@ public class ResultReporter implements ILogSaverListener, ITestInvocationListene
      * directory generated in a previous session by a passing test will not be generated on retry
      * unless copied from the old result directory.
      *
-     * @param oldResultsDir
-     * @param newResultsDir
+     * @param oldDir
+     * @param newDir
      */
-    static void copyRetryFiles(File oldResultsDir, File newResultsDir) {
-        File[] oldFiles = oldResultsDir.listFiles();
-        for (File oldFile : oldFiles) {
-            File newFile = new File (newResultsDir, oldFile.getName());
-            if (!newFile.exists()) {
+    static void copyRetryFiles(File oldDir, File newDir) {
+        File[] oldChildren = oldDir.listFiles();
+        for (File oldChild : oldChildren) {
+            if (NOT_RETRY_FILES.contains(oldChild.getName())) {
+                continue; // do not copy this file/directory or its children
+            }
+            File newChild = new File(newDir, oldChild.getName());
+            if (!newChild.exists()) {
+                // If this old file or directory doesn't exist in new dir, simply copy it
                 try {
-                    if (oldFile.isDirectory()) {
-                        FileUtil.recursiveCopy(oldFile, newFile);
+                    if (oldChild.isDirectory()) {
+                        FileUtil.recursiveCopy(oldChild, newChild);
                     } else {
-                        FileUtil.copyFile(oldFile, newFile);
+                        FileUtil.copyFile(oldChild, newChild);
                     }
                 } catch (IOException e) {
-                    warn("Failed to copy file \"%s\" from previous session", oldFile.getName());
+                    warn("Failed to copy file \"%s\" from previous session", oldChild.getName());
                 }
+            } else if (oldChild.isDirectory() && newChild.isDirectory()) {
+                // If both children exist as directories, make sure the children of the old child
+                // directory exist in the new child directory.
+                copyRetryFiles(oldChild, newChild);
             }
         }
     }

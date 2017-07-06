@@ -21,6 +21,7 @@ import junit.framework.TestCase;
 
 import java.io.File;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
@@ -47,8 +48,6 @@ public class ResultHandlerTest extends TestCase {
     private static final String NAME_B = "ModuleB";
     private static final String DONE_A = "false";
     private static final String DONE_B = "true";
-    private static final String NOT_EXECUTED_A = "1";
-    private static final String NOT_EXECUTED_B = "0";
     private static final String RUNTIME_A = "100";
     private static final String RUNTIME_B = "200";
     private static final String ABI = "mips64";
@@ -103,10 +102,10 @@ public class ResultHandlerTest extends TestCase {
             "  <Build build_fingerprint=\"%s\" " + BUILD_ID + "=\"%s\" " +
                BUILD_PRODUCT + "=\"%s\" />\n";
     private static final String XML_SUMMARY =
-            "  <Summary pass=\"%d\" failed=\"%d\" not_executed=\"%d\" " +
+            "  <Summary pass=\"%d\" failed=\"%d\" " +
             "modules_done=\"1\" modules_total=\"1\" />\n";
     private static final String XML_MODULE =
-            "  <Module name=\"%s\" abi=\"%s\" device=\"%s\" runtime=\"%s\" done=\"%s\" not_executed=\"%s\">\n" +
+            "  <Module name=\"%s\" abi=\"%s\" device=\"%s\" runtime=\"%s\" done=\"%s\">\n" +
             "%s" +
             "  </Module>\n";
     private static final String XML_CASE =
@@ -166,7 +165,6 @@ public class ResultHandlerTest extends TestCase {
         moduleATest1.setResultStatus(TestStatus.PASS);
         ITestResult moduleATest2 = moduleACase.getOrCreateResult(METHOD_2);
         moduleATest2.setResultStatus(null); // not executed test
-        moduleA.setNotExecuted(1);
 
         IModuleResult moduleB = result.getOrCreateModule(ID_B);
         moduleB.setDone(true);
@@ -193,15 +191,33 @@ public class ResultHandlerTest extends TestCase {
                 COMMAND_LINE_ARGS);
 
         // Parse the results and assert correctness
-        checkResult(ResultHandler.getResults(resultsDir), resultDir);
+        checkResult(ResultHandler.getResultFromDir(resultDir));
     }
 
     public void testParsing() throws Exception {
-        File resultsDir = null;
+        File resultDir = writeResultDir(resultsDir);
+        // Parse the results and assert correctness
+        checkResult(ResultHandler.getResultFromDir(resultDir));
+    }
+
+    public void testGetLightResults() throws Exception {
+        File resultDir = writeResultDir(resultsDir);
+        List<IInvocationResult> lightResults = ResultHandler.getLightResults(resultsDir);
+        assertEquals("Expected one result", 1, lightResults.size());
+        IInvocationResult lightResult = lightResults.get(0);
+        checkLightResult(lightResult);
+    }
+
+    /*
+     * Helper to write a result to the results dir, for testing.
+     * @return the written resultDir
+     */
+    static File writeResultDir(File resultsDir) throws IOException {
+        File resultDir = null;
         FileWriter writer = null;
+        String dateString = ResultHandler.toReadableDateString(System.currentTimeMillis());
         try {
-            resultsDir = FileUtil.createTempDir("results");
-            File resultDir = FileUtil.createTempDir("12345", resultsDir);
+            resultDir = FileUtil.createTempDir("12345", resultsDir);
             // Create the result file
             File resultFile = new File(resultDir, ResultHandler.TEST_RESULT_FILE_NAME);
             writer = new FileWriter(resultFile);
@@ -211,7 +227,7 @@ public class ResultHandlerTest extends TestCase {
             String moduleATest = String.format(XML_TEST_PASS, METHOD_1);
             String moduleACases = String.format(XML_CASE, CLASS_A, moduleATest);
             String moduleA = String.format(XML_MODULE, NAME_A, ABI, DEVICE_A, RUNTIME_A, DONE_A,
-                    NOT_EXECUTED_A, moduleACases);
+                    moduleACases);
             String moduleBTest3 = String.format(XML_TEST_FAIL, METHOD_3, MESSAGE, STACK_TRACE,
                     BUG_REPORT, LOGCAT, SCREENSHOT);
             String moduleBTest4 = String.format(XML_TEST_RESULT, METHOD_4,
@@ -222,7 +238,7 @@ public class ResultHandlerTest extends TestCase {
             String moduleBTests = String.format(JOIN, moduleBTest3, moduleBTest4);
             String moduleBCases = String.format(XML_CASE, CLASS_B, moduleBTests);
             String moduleB = String.format(XML_MODULE, NAME_B, ABI, DEVICE_B, RUNTIME_B, DONE_B,
-                    NOT_EXECUTED_B, moduleBCases);
+                    moduleBCases);
             String modules = String.format(JOIN, moduleA, moduleB);
             String hostName = "";
             try {
@@ -235,22 +251,38 @@ public class ResultHandlerTest extends TestCase {
                     buildInfo, summary, modules);
             writer.write(output);
             writer.flush();
-
-            // Parse the results and assert correctness
-            checkResult(ResultHandler.getResults(resultsDir), resultDir);
         } finally {
             if (writer != null) {
                 writer.close();
             }
         }
+        return resultDir;
     }
 
-    private void checkResult(List<IInvocationResult> results, File resultDir) throws Exception {
-        assertEquals("Expected 1 result", 1, results.size());
-        IInvocationResult result = results.get(0);
+    static void checkLightResult(IInvocationResult lightResult) throws Exception {
+        assertEquals("Expected 2 passes", 2, lightResult.countResults(TestStatus.PASS));
+        assertEquals("Expected 1 failure", 1, lightResult.countResults(TestStatus.FAIL));
+
+        Map<String, String> buildInfo = lightResult.getInvocationInfo();
+        assertEquals("Incorrect Build ID", EXAMPLE_BUILD_ID, buildInfo.get(BUILD_ID));
+        assertEquals("Incorrect Build Product",
+            EXAMPLE_BUILD_PRODUCT, buildInfo.get(BUILD_PRODUCT));
+
+        Set<String> serials = lightResult.getDeviceSerials();
+        assertTrue("Missing device", serials.contains(DEVICE_A));
+        assertTrue("Missing device", serials.contains(DEVICE_B));
+        assertEquals("Expected 2 devices", 2, serials.size());
+        assertTrue("Incorrect devices", serials.contains(DEVICE_A) && serials.contains(DEVICE_B));
+        assertEquals("Incorrect start time", START_MS, lightResult.getStartTime());
+        assertEquals("Incorrect test plan", SUITE_PLAN, lightResult.getTestPlan());
+        List<IModuleResult> modules = lightResult.getModules();
+        assertEquals("Expected 1 completed module", 1, lightResult.getModuleCompleteCount());
+        assertEquals("Expected 2 total modules", 2, modules.size());
+    }
+
+    static void checkResult(IInvocationResult result) throws Exception {
         assertEquals("Expected 2 passes", 2, result.countResults(TestStatus.PASS));
         assertEquals("Expected 1 failure", 1, result.countResults(TestStatus.FAIL));
-        assertEquals("Expected 1 not executed", 1, result.getNotExecuted());
 
         Map<String, String> buildInfo = result.getInvocationInfo();
         assertEquals("Incorrect Build ID", EXAMPLE_BUILD_ID, buildInfo.get(BUILD_ID));

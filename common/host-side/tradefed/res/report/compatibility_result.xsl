@@ -82,12 +82,6 @@
                             </td>
                         </tr>
                         <tr>
-                            <td class="rowtitle">Tests Not Executed</td>
-                            <td>
-                                <xsl:value-of select="Result/Summary/@not_executed"/>
-                            </td>
-                        </tr>
-                        <tr>
                             <td class="rowtitle">Modules Done</td>
                             <td>
                                 <xsl:value-of select="Result/Summary/@modules_done"/>
@@ -134,14 +128,14 @@
                             <th>Module</th>
                             <th>Passed</th>
                             <th>Failed</th>
-                            <th>Not Executed</th>
                             <th>Total Tests</th>
+                            <th>Done</th>
                         </tr>
                         <xsl:for-each select="Result/Module">
                             <tr>
                                 <td>
-                                    <xsl:variable name="href"><xsl:value-of select="@name"/> - <xsl:value-of select="@abi"/></xsl:variable>
-                                    <a href="#{$href}"><xsl:value-of select="@name"/> - <xsl:value-of select="@abi"/></a>
+                                    <xsl:variable name="href"><xsl:value-of select="@abi"/>&#xA0;<xsl:value-of select="@name"/></xsl:variable>
+                                    <a href="#{$href}"><xsl:value-of select="@abi"/>&#xA0;<xsl:value-of select="@name"/></a>
                                 </td>
                                 <td>
                                     <xsl:value-of select="count(TestCase/Test[@result = 'pass'])"/>
@@ -150,10 +144,10 @@
                                     <xsl:value-of select="count(TestCase/Test[@result = 'fail'])"/>
                                 </td>
                                 <td>
-                                    <xsl:value-of select="count(TestCase/Test[@result = 'not_executed'])"/>
+                                    <xsl:value-of select="count(TestCase/Test)"/>
                                 </td>
                                 <td>
-                                    <xsl:value-of select="count(TestCase/Test)"/>
+                                    <xsl:value-of select="@done"/>
                                 </td>
                             </tr>
                         </xsl:for-each> <!-- end Module -->
@@ -199,8 +193,8 @@
                     <table class="testdetails">
                         <tr>
                             <td class="module" colspan="3">
-                                <xsl:variable name="href"><xsl:value-of select="@name"/> - <xsl:value-of select="@abi"/></xsl:variable>
-                                <a name="{$href}"><xsl:value-of select="@name"/> - <xsl:value-of select="@abi"/></a>
+                                <xsl:variable name="href"><xsl:value-of select="@abi"/>&#xA0;<xsl:value-of select="@name"/></xsl:variable>
+                                <a name="{$href}"><xsl:value-of select="@abi"/>&#xA0;<xsl:value-of select="@name"/></a>
                             </td>
                         </tr>
 

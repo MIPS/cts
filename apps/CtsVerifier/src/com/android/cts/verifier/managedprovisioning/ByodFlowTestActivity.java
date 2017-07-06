@@ -16,12 +16,14 @@
 
 package com.android.cts.verifier.managedprovisioning;
 
+import android.app.KeyguardManager;
 import android.app.admin.DevicePolicyManager;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.ConnectivityManager;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.util.Log;
@@ -38,9 +40,10 @@ import com.android.cts.verifier.TestResult;
 import com.android.cts.verifier.location.LocationListenerActivity;
 
 /**
- * CTS verifier test for BYOD managed provisioning flow.
- * This activity is responsible for starting the managed provisioning flow and verify the outcome of provisioning.
- * It performs the following verifications:
+ * CTS verifier test for BYOD managed provisioning flow
+ *
+ * This activity is responsible for starting the managed provisioning flow and verify the outcome of
+ * provisioning. It performs the following verifications:
  *   Full disk encryption is enabled.
  *   Profile owner is correctly installed.
  *   Profile owner shows up in the Settings app.
@@ -50,14 +53,19 @@ import com.android.cts.verifier.location.LocationListenerActivity;
  */
 public class ByodFlowTestActivity extends DialogTestListActivity {
 
-    private final String TAG = "ByodFlowTestActivity";
+    private static final String TAG = "ByodFlowTestActivity";
+    private static ConnectivityManager mCm;
     private static final int REQUEST_MANAGED_PROVISIONING = 0;
     private static final int REQUEST_PROFILE_OWNER_STATUS = 1;
     private static final int REQUEST_INTENT_FILTERS_STATUS = 2;
+    private static final int REQUEST_CHECK_DISK_ENCRYPTION = 3;
+    private static final int REQUEST_SET_LOCK_FOR_ENCRYPTION = 4;
 
     private ComponentName mAdminReceiverComponent;
+    private KeyguardManager mKeyguardManager;
 
     private DialogTestListItem mProfileOwnerInstalled;
+    private DialogTestListItem mDiskEncryptionTest;
     private DialogTestListItem mProfileAccountVisibleTest;
     private DialogTestListItem mDeviceAdminVisibleTest;
     private DialogTestListItem mWorkAppVisibleTest;
@@ -107,6 +115,7 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mAdminReceiverComponent = new ComponentName(this, DeviceAdminTestReceiver.class.getName());
+        mKeyguardManager = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
 
         enableComponent(PackageManager.COMPONENT_ENABLED_STATE_DISABLED);
         mPrepareTestButton.setText(R.string.provisioning_byod_start);
@@ -145,17 +154,24 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
         switch (requestCode) {
             case REQUEST_MANAGED_PROVISIONING:
                 return;
-            case REQUEST_PROFILE_OWNER_STATUS: {
+            case REQUEST_PROFILE_OWNER_STATUS:
                 // Called after queryProfileOwner()
                 handleStatusUpdate(resultCode, data);
-            } break;
-            case REQUEST_INTENT_FILTERS_STATUS: {
+                break;
+            case REQUEST_CHECK_DISK_ENCRYPTION:
+                // Called after checkDiskEncryption()
+                handleDiskEncryptionStatus(resultCode, data);
+                break;
+            case REQUEST_SET_LOCK_FOR_ENCRYPTION:
+                // Called after handleDiskEncryptionStatus() to set screen lock if necessary
+                handleSetLockForEncryption();
+                break;
+            case REQUEST_INTENT_FILTERS_STATUS:
                 // Called after checkIntentFilters()
                 handleIntentFiltersStatus(resultCode);
-            } break;
-            default: {
+                break;
+            default:
                 super.handleActivityResult(requestCode, resultCode, data);
-            }
         }
     }
 
@@ -183,6 +199,15 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
             @Override
             public void performTest(DialogTestListActivity activity) {
                 queryProfileOwner(true);
+            }
+        };
+
+        mDiskEncryptionTest = new DialogTestListItem(this,
+                R.string.provisioning_byod_disk_encryption,
+                "BYOD_DiskEncryptionTest") {
+            @Override
+            public void performTest(DialogTestListActivity activity) {
+                checkDiskEncryption();
             }
         };
 
@@ -390,6 +415,7 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
                 policyTransparencyTestIntent, null);
 
         adapter.add(mProfileOwnerInstalled);
+        adapter.add(mDiskEncryptionTest);
 
         // Badge related tests
         adapter.add(mWorkAppVisibleTest);
@@ -403,7 +429,6 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
         adapter.add(mCredSettingsVisibleTest);
         adapter.add(mAppSettingsVisibleTest);
         adapter.add(mLocationSettingsVisibleTest);
-        adapter.add(mCellularDataUsageSettingsVisibleTest);
         adapter.add(mPrintSettingsVisibleTest);
 
         adapter.add(mCrossProfileIntentFiltersTestFromPersonal);
@@ -429,6 +454,11 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
 
         if (getPackageManager().hasSystemFeature(PackageManager.FEATURE_WIFI)) {
             adapter.add(mWiFiDataUsageSettingsVisibleTest);
+        }
+
+        mCm = (ConnectivityManager)getSystemService(Context.CONNECTIVITY_SERVICE);
+        if(mCm.getNetworkInfo(ConnectivityManager.TYPE_MOBILE) != null) {
+            adapter.add(mCellularDataUsageSettingsVisibleTest);
         }
 
         if (canResolveIntent(new Intent(Settings.ACTION_APPLICATION_SETTINGS))) {
@@ -602,6 +632,59 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
             if (showToast) {
                 showToast(R.string.provisioning_byod_no_activity);
             }
+        }
+    }
+
+    private void checkDiskEncryption() {
+        try {
+            Intent intent = new Intent(ByodHelperActivity.ACTION_CHECK_DISK_ENCRYPTION);
+            startActivityForResult(intent, REQUEST_CHECK_DISK_ENCRYPTION);
+        } catch (ActivityNotFoundException e) {
+            Log.d(TAG, "checkDiskEncryption: ActivityNotFoundException", e);
+            setTestResult(mDiskEncryptionTest, TestResult.TEST_RESULT_FAILED);
+            showToast(R.string.provisioning_byod_no_activity);
+        }
+    }
+
+    private void handleDiskEncryptionStatus(int resultCode, Intent data) {
+        if (resultCode != RESULT_OK || data == null) {
+            Log.e(TAG, "Failed to get result for disk encryption, result code: " + resultCode);
+            setTestResult(mDiskEncryptionTest, TestResult.TEST_RESULT_FAILED);
+            return;
+        }
+
+        final int status = data.getIntExtra(ByodHelperActivity.EXTRA_ENCRYPTION_STATUS,
+                DevicePolicyManager.ENCRYPTION_STATUS_UNSUPPORTED);
+        switch (status) {
+            case DevicePolicyManager.ENCRYPTION_STATUS_ACTIVE:
+            case DevicePolicyManager.ENCRYPTION_STATUS_ACTIVE_PER_USER:
+                setTestResult(mDiskEncryptionTest, TestResult.TEST_RESULT_PASSED);
+                break;
+            case DevicePolicyManager.ENCRYPTION_STATUS_ACTIVE_DEFAULT_KEY:
+                if (!mKeyguardManager.isDeviceSecure()) {
+                    Utils.setScreenLock(this, REQUEST_SET_LOCK_FOR_ENCRYPTION);
+                    return;
+                }
+                Log.e(TAG, "Disk encryption key is not entangled with lock screen credentials");
+                Toast.makeText(this, R.string.provisioning_byod_disk_encryption_default_key_toast,
+                        Toast.LENGTH_LONG).show();
+                // fall through
+            default:
+                setTestResult(mDiskEncryptionTest, TestResult.TEST_RESULT_FAILED);
+        }
+
+        if (mKeyguardManager.isDeviceSecure()) {
+            Utils.removeScreenLock(this);
+        }
+    }
+
+    private void handleSetLockForEncryption() {
+        if (mKeyguardManager.isDeviceSecure()) {
+            checkDiskEncryption();
+        } else {
+            setTestResult(mDiskEncryptionTest, TestResult.TEST_RESULT_FAILED);
+            Toast.makeText(this, R.string.provisioning_byod_disk_encryption_no_pin_toast,
+                    Toast.LENGTH_LONG).show();
         }
     }
 

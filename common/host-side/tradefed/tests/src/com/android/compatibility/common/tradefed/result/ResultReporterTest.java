@@ -39,6 +39,7 @@ import java.util.List;
 public class ResultReporterTest extends TestCase {
 
     private static final String ROOT_PROPERTY = "TESTS_ROOT";
+    private static final String SUITE_NAME = "TESTS";
     private static final String BUILD_NUMBER = "2";
     private static final String SUITE_PLAN = "cts";
     private static final String DYNAMIC_CONFIG_URL = "";
@@ -384,7 +385,7 @@ public class ResultReporterTest extends TestCase {
     public void testCopyFormattingFiles() throws Exception {
         File resultDir = new File(mBuildHelper.getResultsDir(), RESULT_DIR);
         resultDir.mkdirs();
-        ResultReporter.copyFormattingFiles(resultDir);
+        ResultReporter.copyFormattingFiles(resultDir, SUITE_NAME);
         for (String filename : FORMATTING_FILES) {
             File file = new File(resultDir, filename);
             assertTrue(String.format("%s (%s) was not created", filename, file.getAbsolutePath()),

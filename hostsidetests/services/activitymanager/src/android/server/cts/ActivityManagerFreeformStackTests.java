@@ -16,6 +16,9 @@
 
 package android.server.cts;
 
+import android.server.cts.ActivityManagerState.ActivityStack;
+import android.server.cts.ActivityManagerState.ActivityTask;
+
 import java.awt.Rectangle;
 import java.util.ArrayList;
 
@@ -54,15 +57,25 @@ public class ActivityManagerFreeformStackTests extends ActivityManagerTestBase {
                 mAmWmState.getAmState().getTaskByActivityName(TEST_ACTIVITY).getBounds());
     }
 
-    public void testNonResizeableActivityNotLaunchedToFreeform() throws Exception {
+    public void testNonResizeableActivityHasFullDisplayBounds() throws Exception {
         launchActivityInStack(NON_RESIZEABLE_ACTIVITY, FREEFORM_WORKSPACE_STACK_ID);
 
         mAmWmState.computeState(mDevice, new String[] {NON_RESIZEABLE_ACTIVITY});
 
-        mAmWmState.assertFrontStack(
-                "Fullscreen stack must be the front stack.", FULLSCREEN_WORKSPACE_STACK_ID);
-        mAmWmState.assertDoesNotContainStack(
-                "Must not contain freeform stack.", FREEFORM_WORKSPACE_STACK_ID);
+        final ActivityTask task =
+                mAmWmState.getAmState().getTaskByActivityName(NON_RESIZEABLE_ACTIVITY);
+        final ActivityStack stack = mAmWmState.getAmState().getStackById(task.mStackId);
+
+        if (task.isFullscreen()) {
+            // If the task is on the fullscreen stack, then we know that it will have bounds that
+            // fill the entire display.
+            return;
+        }
+
+        // If the task is not on the fullscreen stack, then compare the task bounds to the display
+        // bounds.
+        assertEquals(mAmWmState.getWmState().getDisplay(stack.mDisplayId).getDisplayRect(),
+                task.getBounds());
     }
 
     public void testActivityLifeCycleOnResizeFreeformTask() throws Exception {

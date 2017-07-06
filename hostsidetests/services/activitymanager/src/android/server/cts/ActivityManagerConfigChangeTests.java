@@ -71,11 +71,22 @@ public class ActivityManagerConfigChangeTests extends ActivityManagerTestBase {
 
         final String[] waitForActivitiesVisible = new String[] {activityName};
         mAmWmState.computeState(mDevice, waitForActivitiesVisible);
-        mAmWmState.assertContainsStack(
-                "Must contain fullscreen stack.", FULLSCREEN_WORKSPACE_STACK_ID);
 
-        setDeviceRotation(4 - rotationStep);
+        final int initialRotation = 4 - rotationStep;
+        setDeviceRotation(initialRotation);
         mAmWmState.computeState(mDevice, waitForActivitiesVisible);
+        final int actualStackId = mAmWmState.getAmState().getTaskByActivityName(
+                activityName).mStackId;
+        final int displayId = mAmWmState.getAmState().getStackById(actualStackId).mDisplayId;
+        final int newDeviceRotation = getDeviceRotation(displayId);
+        if (newDeviceRotation == INVALID_DEVICE_ROTATION) {
+            CLog.logAndDisplay(LogLevel.WARN, "Got an invalid device rotation value. "
+                    + "Continuing the test despite of that, but it is likely to fail.");
+        } else if (newDeviceRotation != initialRotation) {
+            CLog.logAndDisplay(LogLevel.INFO, "This device doesn't support user rotation "
+                    + "mode. Not continuing the rotation checks.");
+            return;
+        }
 
         for (int rotation = 0; rotation < 4; rotation += rotationStep) {
             clearLogcat();
@@ -90,8 +101,6 @@ public class ActivityManagerConfigChangeTests extends ActivityManagerTestBase {
         executeShellCommand(getAmStartCmd(activityName));
         final String[] waitForActivitiesVisible = new String[] {activityName};
         mAmWmState.computeState(mDevice, waitForActivitiesVisible);
-        mAmWmState.assertContainsStack(
-                "Must contain fullscreen stack.", FULLSCREEN_WORKSPACE_STACK_ID);
 
         setFontScale(1.0f);
         mAmWmState.computeState(mDevice, waitForActivitiesVisible);

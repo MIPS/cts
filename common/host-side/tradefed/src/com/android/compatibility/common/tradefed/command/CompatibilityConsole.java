@@ -18,11 +18,10 @@ package com.android.compatibility.common.tradefed.command;
 import com.android.compatibility.SuiteInfo;
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildProvider;
-import com.android.compatibility.common.tradefed.result.IInvocationResultRepo;
-import com.android.compatibility.common.tradefed.result.InvocationResultRepo;
-import com.android.compatibility.common.tradefed.result.SubPlanCreator;
+import com.android.compatibility.common.tradefed.result.SubPlanHelper;
 import com.android.compatibility.common.tradefed.testtype.ModuleRepo;
 import com.android.compatibility.common.util.IInvocationResult;
+import com.android.compatibility.common.util.ResultHandler;
 import com.android.compatibility.common.util.TestStatus;
 import com.android.tradefed.command.Console;
 import com.android.tradefed.config.ArgsOptionParser;
@@ -344,16 +343,13 @@ public class CompatibilityConsole extends Console {
     private void listResults() {
         TableFormatter tableFormatter = new TableFormatter();
         List<List<String>> table = new ArrayList<>();
-        IInvocationResultRepo testResultRepo = null;
         List<IInvocationResult> results = null;
         try {
-            testResultRepo = new InvocationResultRepo(getBuildHelper().getResultsDir());
-            results = testResultRepo.getResults();
+            results = ResultHandler.getLightResults(getBuildHelper().getResultsDir());
         } catch (FileNotFoundException e) {
-            printLine(e.getMessage());
-            e.printStackTrace();
+            throw new RuntimeException("Error while parsing results directory", e);
         }
-        if (testResultRepo != null && results.size() > 0) {
+        if (results.size() > 0) {
             for (int i = 0; i < results.size(); i++) {
                 IInvocationResult result = results.get(i);
                 Map<String, String> invocationInfo = result.getInvocationInfo();
@@ -373,7 +369,6 @@ public class CompatibilityConsole extends Console {
                         Integer.toString(i),
                         Integer.toString(result.countResults(TestStatus.PASS)),
                         Integer.toString(result.countResults(TestStatus.FAIL)),
-                        Integer.toString(result.getNotExecuted()),
                         moduleProgress,
                         CompatibilityBuildHelper.getDirSuffix(result.getStartTime()),
                         result.getTestPlan(),
@@ -383,11 +378,9 @@ public class CompatibilityConsole extends Console {
                         ));
             }
 
-
             // add the table header to the beginning of the list
-            table.add(0, Arrays.asList("Session", "Pass", "Fail", "Not Executed",
-                    "Modules Complete", "Result Directory", "Test Plan", "Device serial(s)",
-                    "Build ID", "Product"));
+            table.add(0, Arrays.asList("Session", "Pass", "Fail", "Modules Complete",
+                "Result Directory", "Test Plan", "Device serial(s)", "Build ID", "Product"));
             tableFormatter.displayTable(table, new PrintWriter(System.out, true));
         } else {
             printLine(String.format("No results found"));
@@ -417,7 +410,7 @@ public class CompatibilityConsole extends Console {
     }
 
     private void addSubPlan(String[] flatArgs) {
-        SubPlanCreator creator = new SubPlanCreator();
+        SubPlanHelper creator = new SubPlanHelper();
         try {
             ArgsOptionParser optionParser = new ArgsOptionParser(creator);
             optionParser.parse(Arrays.asList(flatArgs));

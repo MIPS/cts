@@ -111,6 +111,9 @@ public class DirectBootHostTest extends DeviceTestCase implements IAbiReceiver, 
 
     /**
      * If device doesn't have native FBE, verify normal lifecycle.
+     * Note: This test will have a false-negative on the emulator because of the
+     * tradefed and ddmlib incorrectly special-case handling the emulator which
+     * is fixed in http://r.android.com/315302
      */
     public void testDirectBootNone() throws Exception {
         if (!isSupportedDevice()) {
@@ -214,12 +217,7 @@ public class DirectBootHostTest extends DeviceTestCase implements IAbiReceiver, 
 
     private boolean isSupportedDevice() throws Exception {
         final String featureList = getDevice().executeShellCommand("pm list features");
-        if (featureList.contains("feature:android.hardware.type.watch\n") ||
-                featureList.contains("feature:android.hardware.type.television\n")) {
-            return false;
-        } else {
-            return true;
-        }
+        return featureList.contains("feature:android.software.device_admin\n");
     }
 
     private void waitForBootCompleted() throws Exception {

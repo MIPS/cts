@@ -35,6 +35,8 @@ import junit.framework.TestCase;
 public class BuildVersionTest extends TestCase {
 
     private static final String LOG_TAG = "BuildVersionTest";
+    private static final Set<String> EXPECTED_RELEASES =
+            new HashSet<String>(Arrays.asList("7.1","7.1.1","7.1.2"));
     private static final int EXPECTED_SDK = 25;
     private static final String EXPECTED_BUILD_VARIANT = "user";
     private static final String EXPECTED_TAG = "release-keys";

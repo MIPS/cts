@@ -31,7 +31,6 @@ abstract class AbstractAppIdleTestCase extends AbstractRestrictBackgroundNetwork
         if (!isSupported()) return;
 
         // Set initial state.
-        setUpMeteredNetwork();
         removePowerSaveModeWhitelist(TEST_APP2_PKG);
         setAppIdle(false);
         turnBatteryOff();
@@ -61,14 +60,6 @@ abstract class AbstractAppIdleTestCase extends AbstractRestrictBackgroundNetwork
                     + "() because device does not support Doze Mode");
         }
         return supported;
-    }
-
-    /**
-     * Sets the initial (non) metered network state.
-     *
-     * <p>By default is empty - it's up to subclasses to override.
-     */
-    protected void setUpMeteredNetwork() throws Exception {
     }
 
     /**
@@ -156,6 +147,8 @@ abstract class AbstractAppIdleTestCase extends AbstractRestrictBackgroundNetwork
         assertBackgroundNetworkAccess(true);
         setBatterySaverMode(true);
         assertBackgroundNetworkAccess(false);
+        // Use setBatterySaverMode API to leave power-save mode instead of plugging in charger
+        setBatterySaverMode(false);
         turnBatteryOn();
         assertBackgroundNetworkAccess(true);
 

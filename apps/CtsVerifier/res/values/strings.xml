@@ -52,6 +52,10 @@
     <string name="no_storage">Cannot save report to external storage, see log for details.</string>
     <string name="report_saved">Report saved to: %s</string>
 
+    <!-- Strings for IntentDrivenTestActivity -->
+    <string name="intent_not_resolved">Intent Not Resolved</string>
+    <string name="intent_not_resolved_info">The following intent could not be resolved: %1$s</string>
+
     <!-- Strings for ReportViewerActivity -->
     <string name="report_viewer">Report Viewer</string>
 
@@ -59,71 +63,6 @@
     <string name="bu_loading">Loading...</string>
     <string name="bu_generate_error">Error occurred while generating test data...</string>
     <string name="bu_settings">Settings</string>
-
-    <!-- Strings for BackupTestActivity -->
-    <string name="backup_test">Data Backup Test</string>
-    <string name="backup_info">This test checks that data backup and automatic restore works
-        properly. The test activity lists some preferences and files that are backed up and
-        restored by the CTS Verifier. If backup and restore is working properly, these values
-        should be restored after running the backup manager, uninstalling the app, and reinstalling
-        the CTS Verifier.
-        \n\nPress the \"Generate Test Data\" to populate these values
-        and then follow the on screen instructions to finish the test.
-    </string>
-    <string name="bu_generate">Generate Test Data</string>
-    <string name="bu_preferences">Preferences</string>
-    <string name="bu_files">Files</string>
-    <string name="bu_instructions">Random values for the preferences and files have been saved.
-        \n\nFollow the instructions below to check that the data backup and restore works:
-        \n\n1. Make sure backup and automatic restore are enabled in settings. Depending on the
-        backup transport supported by the device you may need to do additional steps. For instance
-        you may need to set a Google account as the backup account for the device. If you cannot
-        find the corresponding setting options on your device, run \"adb shell bmgr enable true\"
-        to enable the backup manager. You can check its status by executing \"adb shell bmgr
-        enabled\".
-        \n\n2. Run the backup manager: adb shell bmgr run
-        \n\n3. Uninstall the program: adb uninstall com.android.cts.verifier
-        \n\n4. Reinstall the CTS Verifier and verify that the values are still the same.
-    </string>
-
-    <!-- Strings for BackupAccessibilityTestActivity -->
-    <string name="backup_accessibility_test">Backup Accessibility Settings Test</string>
-    <string name="backup_accessibility_info">This test checks that data backup and automatic restore
-        of Accessibility-related settings works properly. If backup and restore is working properly,
-        these values should be restored after running the backup manager, removing your Google
-        account, changing the accessibility settings values, and re-adding your Google account.
-        \n\nPress \"Generate Test Data\" to generate test values for accessibility settings and then
-        follow the on screen instructions to finish the test.
-    </string>
-    <string name="bua_settings">General Accessibility Settings</string>
-    <string name="bua_settings_color_correction">Color Correction Settings</string>
-    <string name="bua_settings_accessibility_services">Accessibility Service Settings</string>
-    <string name="bua_settings_captions">Captions Settings</string>
-    <string name="bua_settings_tts">TTS Settings</string>
-    <string name="bua_settings_system">Other System Settings</string>
-    <string name="bua_instructions">You will need two devices for this test.
-        \n\nFollow the instructions below to check that the data backup and restore of
-        accessibility-related settings works properly:
-        \n\n1. Make sure backup and automatic restore are enabled in settings. If you cannot find
-        the corresponding setting options on your device, run \"adb shell bmgr enable true\" to
-        enable the backup manager. You can check its status by executing \"adb shell bmgr enabled\".
-        You will also need to set a Google account as the backup account for the device.
-        \n\n2. Press \"Read Current Values\" and note the default values for the listed settings.
-        Values that are either \"0\" or \"null\" will appear in green. Note: Some default values are
-        neither \"0\", nor \"null\", so you still need to pay attention to the default setting
-        values that are not highlighted.
-        \n\n3. Change the values of the listed settings to something other than their default value.
-        \n\n4. Return to the CtsVerifier and press \"Read Current Values\". Make sure that you have
-        changed all of the settings.
-        \n\n5. Run the backup manager: adb shell bmgr run
-        \n\n6. Factory reset data on the second device. While going through the Setup Wizard,
-        restore all data from the account on your first device. When prompted, choose to restore all
-        settings from your first device.
-        \n\n7. Install CtsVerifier on your new device and make sure that the values read on the
-        second device match the values on your first device.
-    </string>
-    <string name="bua_show_instructions">Show Instructions</string>
-    <string name="bua_read_settings">Read Current Values</string>
 
     <!-- Strings for Device Administration tests -->
     <string name="da_policy_serialization_test">Policy Serialization Test</string>
@@ -1434,7 +1373,7 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="provisioning_byod_capture_media_error">Error while capturing media from managed profile.</string>
     <string name="provisioning_byod_capture_image_error">Error while capturing image from managed profile.</string>
 
-    <string name="provisioning_byod_auth_bound_key">Autentication-boud keys</string>
+    <string name="provisioning_byod_auth_bound_key">Authentication-bound keys</string>
     <string name="provisioning_byod_auth_bound_key_info">
         This test verifies keystore cryptographic keys can be bound to device credentials.
         These keys should only be available if there was a recent enough authentication.
@@ -1443,7 +1382,7 @@ You should be prompted to select credentials; choose the ones you just installed
         This test verifies keystore cryptographic keys can be bound to device lockscreen challenge or fingerprints (if available).
         These keys should only be available if there was a recent enough authentication. \n
 
-        1. Press "Set up" to open Security settings. Create a lockscreen password and if available, enroll a fingerprint.\n
+        1. Press "Set up" to open Security settings. Create a lockscreen password and if available, enroll a fingerprint under "Work profile security".\n
         2. Go through the list of tests.\n
         3. Mark the overall test pass or fail.\n
         4. Once the set of tests are completed, remove the lockscreen challenge.
@@ -1663,7 +1602,33 @@ You should be prompted to select credentials; choose the ones you just installed
         The only way to disable the encryption is to factory reset the device.
     </string>
     <string name="provisioning_byod_profileowner">Profile owner installed</string>
-    <string name="provisioning_byod_diskencryption">Full disk encryption enabled</string>
+    <string name="provisioning_byod_disk_encryption">Full disk encryption enabled</string>
+    <string name="provisioning_byod_disk_encryption_default_key_toast">
+        Cannot secure device with screen lock. Please re-run the test if you forgot to select
+        the \"require PIN to boot\" option.
+    </string>
+    <string name="provisioning_byod_disk_encryption_no_pin_toast">
+        No PIN is detected. Please re-run the test if you forgot to set a PIN.
+    </string>
+    <string name="provisioning_byod_set_screen_lock_dialog_message">
+        Next, you will be asked to set a screen lock for the device.\n
+        \n
+        Please set \"1111\" as the new PIN (or any other PIN that you can memorize).
+        You have to enter this PIN again later in order to finish the test.\n
+        \n
+        You may be asked whether the PIN should be required to boot the device. Please answer yes.\n
+        \n
+        Tap Go button to set a new screen lock.
+    </string>
+    <string name="provisioning_byod_remove_screen_lock_dialog_message">
+        The test is almost finished. \n
+        \n
+        Next, you will be asked to remove the screen lock that you just set. Please enter \"1111\"
+        (or your own PIN) when prompted for the old PIN, and do not set any new screen lock. This
+        is to make sure that the device returns to the initial state after this test.\n
+        \n
+        Tap Go button to remove existing screen lock.
+    </string>
     <string name="provisioning_byod_profile_visible">Profile-aware accounts settings</string>
     <string name="provisioning_byod_admin_visible">Profile-aware device administrator settings</string>
     <string name="provisioning_byod_workapps_visible">Badged work apps visible in Launcher</string>
@@ -2029,18 +1994,23 @@ You should be prompted to select credentials; choose the ones you just installed
     </string>
 
     <string name="provisioning_byod_organization_info">Organization Info</string>
+    <string name="provisioning_byod_settings_button_text">Settings</string>
     <string name="provisioning_byod_organization_name_hint">Name</string>
     <string name="provisioning_byod_organization_color_hint">#FF00FF</string>
     <string name="provisioning_byod_set_organization_info_button_text">Set</string>
     <string name="provisioning_byod_organization_info_instructions">
-    This test verifies that the Organization Info was set correctly.
-    You can only do this test after you have done "select work lock" test.\n
-        1. Enter your organization name.\n
-        2. Enter a valid color code.\n
-        3. Press the Set button to set organization Info.\n
-        4. Press the Go button to open a dialog to confirm work credentials.\n
-        5. Verify that the background color of the resulting dialog is as set by you.\n
-        6. Verify that the header text has organization name as set by you.\n
+    This test verifies that the Organization Info was set correctly.\n
+        1. Press the Settings button.\n
+        2. Select separate lock for work profile (e.g. pattern).
+        To do that you may need to disable using one lock in security settings.\n
+        3. Return to CTS verifier using recents.\n
+        4. Enter your organization name.\n
+        5. Enter a valid color code.\n
+        6. Press the Set button to set organization Info.\n
+        7. Dissmiss the lockscreen by entering previously selected lock and return to CTS Verifier using recents.\n
+        8. Press the Go button to open a dialog to confirm work credentials.\n
+        9. Verify that the background color of the resulting dialog is as set by you.\n
+        10. Verify that the header text has organization name as set by you.\n
     </string>
     <string name="provisioning_byod_parent_profile_password">Personal password test</string>
     <string name="provisioning_byod_parent_profile_password_description">
@@ -2283,11 +2253,14 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="device_owner_disallow_config_vpn_info">
         Please press the Set VPN restriction button to set the VPN restriction.
         Perform tests in order. Mark test as passed if both test cases pass\n\n
-        1. Press Go to open the Vpn settings page.\n
-        Confirm that:\n
+        1. Press Go to attempt to open the VPN settings page.\n
+        You should either see (a) the VPN settings page or (b) that the Intent
+        android.settings.VPN_SETTINGS fails to resolve.\n
+        In the case of (a), confirm that:\n
         - You cannot add a new VPN network.\n
         - You cannot edit, add or remove any existing VPNs.\n
-        - Trying to perform any of the above actions will trigger a support message.\n\n
+        - Trying to perform any of the above actions will trigger a support message.\n
+        In the case of (b) this step is successful.\n\n
         2. Press Check VPN to check programmatic Vpn test.\n
         - Check Vpn setup is not allowed\n
         - If prompted to allow a VPN connection, press OK.\n\n
